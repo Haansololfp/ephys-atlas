@@ -1,0 +1,8 @@
+<<<<<<< HEAD
+# from me
+**/*.ipynb
+.ipynb_checkpoints/*
+=======
+*.ipynb
+**/*.ipynb
+>>>>>>> 79b4cb56faf9842a89022371e4b173256b434b14
