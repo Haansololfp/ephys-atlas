@@ -30,6 +30,9 @@ from one.remote import aws
 import pandas as pd
 
 # %%
+one = ONE(base_url='https://alyx.internationalbrainlab.org')
+
+# %%
 # main_dir = '/moto/stats/users/hy2562/projects/ephys_atlas/benchmark_snippets_example'
 
 # %%
@@ -122,10 +125,6 @@ maxchan = data['maxchan']
 wfs_to_denoise = data['wfs_to_denoise']
 
 # %%
-waveforms_to_denoise = np.concatenate(waveforms_to_denoise)
-max_chan = np.array(max_chan).flatten()
-
-# %%
 h5_dir = '/moto/stats/users/hy2562/projects/ephys_atlas/improved_destripe/destripe_and_subtract/eID_111c1762-7908-47e0-9f40-2f2ee55b6505_probe_probe01_pID_eebcaf65-7fa4-4118-869d-a084e84530e2/subtraction.h5'
 
 # %%
@@ -158,22 +157,37 @@ def denoise_with_phase_shift_w_suppress(chan_wfs, phase_shift, chan_ci_idx, spk_
 
 
 # %%
-def denoise_with_phase_shift(chan_wfs, phase_shift, chan_ci_idx, spk_sign):
+def denoise_with_phase_shift(chan_wfs, phase_shift, chan_ci_idx, spk_sign, halluci_idx):
 
     wfs_to_denoise = np.roll(chan_wfs, -phase_shift)
     wfs = np.swapaxes(wfs_to_denoise[None, :, None], 1, 2)
     wfs_denoised = dn(torch.FloatTensor(wfs).reshape(-1, 121)).reshape(wfs.shape)
     wfs_denoised = wfs_denoised.detach().numpy()
-    
-    
+    small_threshold = 2
+    # small_threshold = np.median(np.abs(full_wfs[:,k]))/0.645*2#/1.5
+    # if np.max(np.abs(np.squeeze(wfs_denoised)))>small_threshold:
     spk_denoised_wfs[:, chan_ci_idx] = np.roll(np.squeeze(wfs_denoised), phase_shift)
-    phase_shifted = np.argmax(wfs_denoised * spk_sign) - 42 + phase_shift
+    
+    d_s_corr = np.dot(np.squeeze(wfs_denoised)[32:52], wfs_to_denoise[32:52])/np.sqrt(np.dot(np.squeeze(wfs_denoised)[32:52], np.squeeze(wfs_denoised)[32:52]) * np.dot(wfs_to_denoise[32:52], wfs_to_denoise[32:52]))
+    if (np.ptp(np.squeeze(wfs_denoised))<small_threshold) & (d_s_corr<0.8):
+        phase_shifted = 0
+        halluci_idx[chan_ci_idx] = 1
+        # spk_denoised_wfs[:, chan_ci_idx] = np.zeros(np.shape(wfs_denoised))
+        # c.append(d_s_corr)
+    else:
+        phase_shifted = np.argmax(wfs_denoised * spk_sign) - 42 + phase_shift
+        # a.append(d_s_corr)
+        
+        
     # phase_shifted = np.argmax(np.abs(wfs_denoised)) - 42 + phase_shift
-    return phase_shifted
+    return phase_shifted, halluci_idx
 
 # %%
 x_pitch = np.diff(np.unique(geom[:,0]))[0]
 y_pitch = np.diff(np.unique(geom[:,1]))[0]
+
+# %%
+wfs_to_denoise = np.array(wfs_to_denoise)
 
 # %%
 dn = SingleChanDenoiser().load()
@@ -184,27 +198,69 @@ wfs_denoised_old = dn(torch.FloatTensor(wfs).reshape(-1, 121)).reshape(wfs.shape
 wfs_denoised_old = wfs_denoised_old.detach().numpy()
 
 # %%
+CH_checked
+
+# %%
+neighbors
+
+# %%
+ci_graph
+
+# %%
+group = ci_graph[22]
+
+# %%
+len(np.where(group > mcs_idx)[0])
+
+# %%
+mcs_idx
+
+# %%
+(len(np.where(group > mc_idx)[0])!=0) & (len(np.where(group < mc_idx)[0])!=0) & (ch!= mc_idx[0])
+
+# %%
 from spike_psvae.denoise import SingleChanDenoiser
 spk_time = 42;
 dn = SingleChanDenoiser().load()
 
 wfs_traveler = wfs_to_denoise
 # maxchan = max_chan
-
+a = []
+c = []
 for i in range(len(maxchan)):
     mcs = int(maxchan[i])
     ci = channel_index[mcs]
     non_nan_idx = np.where(ci<384)[0]
     
     ci = ci[non_nan_idx]
+    l = len(ci)
     
+    # BFS to shift the phase
+    ci_graph = dict()
+    ci_geom = geom[ci]
+    mc_idx = np.where(ci == mcs)[0]
+    for ch in range(l):
+        group = np.where(((np.abs(ci_geom[:,0] - ci_geom[ch,0]) == x_pitch) & (np.abs(ci_geom[:,1] - ci_geom[ch,1]) == y_pitch))|
+                           ((np.abs(ci_geom[:,0] - ci_geom[ch,0]) == 0) & (np.abs(ci_geom[:,1] - ci_geom[ch,1]) == 2 * y_pitch)) |
+                           ((np.abs(ci_geom[:,0] - ci_geom[ch,0]) == 2 * x_pitch) & (np.abs(ci_geom[:,1] - ci_geom[ch,1]) == 0)))[0]
+        ci_graph[ch] = group
+            
     
-    real_maxCH = np.argmax(wfs_denoised_old[i,non_nan_idx,:].ptp(1))
+    mc_neighbor_idx = np.concatenate((ci_graph[mc_idx[0]], mc_idx))
+    real_maxCH = mc_neighbor_idx[np.argmax(wfs_denoised_old[i,non_nan_idx[mc_neighbor_idx],:].ptp(1))]
     mcs_idx = real_maxCH
+    
+    for ch in range(l):
+        group = ci_graph[ch]
+        if (len(np.where(group > mcs_idx)[0])!=0) & (len(np.where(group < mcs_idx)[0])!=0) & (ch!= mcs_idx):
+            if ch>mcs_idx:
+                ci_graph[ch] = np.append(group[group>mcs_idx], mcs_idx)
+            else:
+                ci_graph[ch] = np.append(group[group<mcs_idx], mcs_idx)
+    
     # mcs_idx = np.squeeze(np.where(ci == mcs))
     previous_ch_idx = mcs_idx
     
-    l = len(ci)
     
     spk_denoised_wfs = np.zeros((121, l))
     
@@ -222,18 +278,9 @@ for i in range(len(maxchan)):
     
     spk_sign = np.sign(wfs_denoised[42 + mcs_phase_shift])
     
-    threshold = 0.2 * wfs_denoised[42 + mcs_phase_shift]  #threshold on the peak amplitude, no phase shift if the amplitude is smaller than 20% of the maxchan
+    # threshold = 0.2 * wfs_denoised[42 + mcs_phase_shift]  #threshold on the peak amplitude, no phase shift if the amplitude is smaller than 20% of the maxchan
     
     
-
-    
-    # BFS to shift the phase
-    ci_graph = dict()
-    ci_geom = geom[ci]
-    for ch in range(l):
-        ci_graph[ch] = np.where(((np.abs(ci_geom[:,0] - ci_geom[ch,0]) == x_pitch) & (np.abs(ci_geom[:,1] - ci_geom[ch,1]) == y_pitch))|
-                           ((np.abs(ci_geom[:,0] - ci_geom[ch,0]) == 0) & (np.abs(ci_geom[:,1] - ci_geom[ch,1]) == 2 * y_pitch)) |
-                           ((np.abs(ci_geom[:,0] - ci_geom[ch,0]) == 2 * x_pitch) & (np.abs(ci_geom[:,1] - ci_geom[ch,1]) == 0)))  
     
     
     CH_checked = np.zeros(l)
@@ -244,6 +291,7 @@ for i in range(len(maxchan)):
     CH_phase_shift[mcs_idx] = mcs_phase_shift
     
     wfs_ptp = np.zeros(l)
+    halluci_idx = np.zeros(l)
     wfs_ptp[mcs_idx] = np.ptp(wfs_denoised)
     CH_checked[mcs_idx] = 1
     q = []
@@ -251,30 +299,57 @@ for i in range(len(maxchan)):
     
     while len(q)>0:
         u = q.pop()
-        v = ci_graph[u][0]
-
+        v = ci_graph[u]#[0]
+        
+    
         for k in v:
             if CH_checked[k] == 0:
-                neighbors = ci_graph[k][0]
+                neighbors = ci_graph[k]#[0]
                 checked_neighbors = neighbors[CH_checked[neighbors] == 1]
                 # if len(np.where(ci_geom[checked_neighbors, 0] == ci_geom[k, 0])[0])>0:
                 #     phase_shift_ref = np.argmax(wfs_ptp[checked_neighbors[ci_geom[checked_neighbors, 0] == ci_geom[k, 0]]])
                 # else:
                 phase_shift_ref = np.argmax(wfs_ptp[checked_neighbors])
-                    
+
                 threshold = max(0.3* wfs_ptp[mcs_idx], 3)
-                if wfs_ptp[checked_neighbors[phase_shift_ref]] > threshold:
+
+                rest_phase_shift = np.delete(parent_peak_phase, checked_neighbors[phase_shift_ref])
+                if (wfs_ptp[checked_neighbors[phase_shift_ref]] > threshold) & (np.min(np.abs(rest_phase_shift - CH_phase_shift[checked_neighbors[phase_shift_ref]]))<=5):
                     parent_peak_phase[k] = CH_phase_shift[checked_neighbors[phase_shift_ref]]
                 else:
                     parent_peak_phase[k] = 0
 
-                
-                CH_phase_shift[k] = denoise_with_phase_shift(full_wfs[:,k], int(parent_peak_phase[k]), k, spk_sign)
+                CH_phase_shift[k], halluci_idx = denoise_with_phase_shift(full_wfs[:,k], int(parent_peak_phase[k]), k, spk_sign, halluci_idx)
                 parent[k] = checked_neighbors[phase_shift_ref]
                 wfs_ptp[k] = np.ptp(spk_denoised_wfs[:,k])
                 q.insert(0,k)
                 CH_checked[k] = 1
 
+                # if np.sum(halluci_idx[neighbors]) + halluci_idx[k]>=2:
+                #     # print('stop')
+                #     q_partial = []
+                #     q_partial.append(k)
+                #     while len(q_partial)>0:
+                #         x = q_partial.pop()
+                #         y = ci_graph[x][0]
+                #         for z in y:
+                #             if CH_checked[z] == 0:
+                #                 CH_checked[z] = 1
+                #                 q_partial.insert(0,z)
+                #                 halluci_idx[z] = 1
+                    
+        
+        if np.sum(halluci_idx[v])>=3:
+            # print('stop')
+            q_partial = v.tolist()
+            while len(q_partial)>0:
+                x = q_partial.pop()
+                y = ci_graph[x]#[0]
+                for z in y:
+                    if CH_checked[z] == 0:
+                        CH_checked[z] = 1
+                        q_partial.insert(0,z)
+                        halluci_idx[z] = 1
     
     bias = np.arange(len(non_nan_idx))
     bias = np.repeat(bias[None,:], 121, axis = 0)
@@ -325,8 +400,15 @@ for i in range(len(maxchan)):
     
     
     # np.savez('/moto/stats/users/hy2562/projects/ephys_atlas/two channel denoiser/iterative_phase_shift_single_channel_denoised_unit_' + str(i) + '.npz', parent_peak_phase = parent_peak_phase, denoised_im_wfs = denoised_im_wfs)
-    plt.savefig('/moto/stats/users/hy2562/projects/ephys_atlas/phase-shift_single_channel_denoiser_large_scale_test/align_max_abs_ptp3/'+ 'unit_' + str(i) + 'iterative_phase_shift.png')
+    plt.savefig('/moto/stats/users/hy2562/projects/ephys_atlas/phase-shift_single_channel_denoiser_large_scale_test/align_peak_ptp_3_shift_5_kill_small_leave_on/'+ 'unit_' + str(i) + 'iterative_phase_shift.png')
     plt.close()
+
+# %%
+plt.hist(a, bins = np.arange(-0.75, 1, 0.025), alpha = 0.5);
+plt.hist(c, bins = np.arange(-0.75, 1, 0.025), alpha = 0.5);
+
+# %%
+np.savez(save_dir + '/spks_to_denoise.npz', wfs_to_denoise = wfs_to_denoise, maxchan = maxchan)
 
 # %%
 wfs_traveler = wfs_to_denoise
@@ -369,7 +451,6 @@ for i in range(2569,2570):#range(len(maxchan)):
     
     
 
-    
     # BFS to shift the phase
     ci_graph = dict()
     ci_geom = geom[ci]

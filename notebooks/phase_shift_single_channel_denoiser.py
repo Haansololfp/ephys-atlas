@@ -72,8 +72,8 @@ for i in range(4):
     rec.set_probe(rec_cbin.get_probe(), in_place=True)
     fs = rec.get_sampling_frequency()
     
-    load_start = spk_times - 42 - 60
-    load_end = spk_times + 79 + 60
+    load_start = spk_times - 42# - 60
+    load_end = spk_times + 79# + 60
     
     spk_idx = []
     for j in range(len(spike_pick['curve_travel_spike'][0])):
@@ -288,7 +288,7 @@ for i in range(17):
     
     spk_sign = np.sign(wfs_denoised[42 + mcs_phase_shift])
     
-    threshold = 0.2 * wfs_denoised[42 + mcs_phase_shift]  #threshold on the peak amplitude, no phase shift if the amplitude is smaller than 20% of the maxchan
+    threshold = 0.3 * wfs_denoised[42 + mcs_phase_shift]  #threshold on the peak amplitude, no phase shift if the amplitude is smaller than 20% of the maxchan
     
     
     # BFS to shift the phase
@@ -323,8 +323,8 @@ for i in range(17):
                 neighbors = ci_graph[k][0]
                 checked_neighbors = neighbors[CH_checked[neighbors] == 1]
                 phase_shift_ref = np.argmax(wfs_ptp[checked_neighbors])
-                
-                if np.max(wfs_ptp[checked_neighbors]) > (0.2* wfs_ptp[mcs_idx]):
+                threshold = max(0.3* wfs_ptp[mcs_idx], 3)
+                if np.max(wfs_ptp[checked_neighbors]) > threshold:
                     parent_peak_phase[k] = CH_phase_shift[checked_neighbors[phase_shift_ref]]
                 else:
                     parent_peak_phase[k] = 0
@@ -372,7 +372,7 @@ for i in range(17):
     axs[3].set_title('denoised peak')
     
     # np.savez('/moto/stats/users/hy2562/projects/ephys_atlas/two channel denoiser/iterative_phase_shift_single_channel_denoised_unit_' + str(i) + '.npz', parent_peak_phase = parent_peak_phase, denoised_im_wfs = denoised_im_wfs)
-    plt.savefig('/moto/stats/users/hy2562/projects/ephys_atlas/highly_similar_datasets/shift_phase_denoiser/iterative_phase_shift/'+ 'unit_' + str(i) + 'iterative_phase_shift.png')
+    # plt.savefig('/moto/stats/users/hy2562/projects/ephys_atlas/highly_similar_datasets/shift_phase_denoiser/iterative_phase_shift/'+ 'unit_' + str(i) + 'iterative_phase_shift.png')
 
 # %%
 from spike_psvae.waveform_utils import closest_chans_channel_index
