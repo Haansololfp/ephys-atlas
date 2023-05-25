@@ -171,12 +171,12 @@ def spatial_spread_weighted_dist(wfs, geom, ci, spk_idx):
 
 
 
-def velocity(wfs, geom, channel_index, fs, n_workers = 1, threshold = 0.12):
+def velocity(wfs, geom, channel_index, fs, mcs, n_workers = 4, threshold = 0.12):
     N, T, C = np.shape(wfs)
     wfs_ptp = wfs.ptp(1)
     max_ptp = np.nanmax(wfs_ptp, axis = 1)
 
-    mcs = np.nanargmax(wfs_ptp, axis=1)
+    # mcs = np.nanargmax(wfs_ptp, axis=1)
 
     threshold_ptp = max_ptp * threshold
 

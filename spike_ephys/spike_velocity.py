@@ -30,10 +30,10 @@ def get_spike_velocity(wf, sp_idx, geom, channel_index, mc, fs):
     
     z = local_geom[:,1]
     if np.sign(wf.flatten()[max_idx]) == 1:
-        times = np.nanargmax(wf, axis = 0)/30000
+        times = np.nanargmax(wf, axis = 0)/fs
         times = times - times[mcs]
     else:
-        times = np.nanargmin(wf, axis = 0)/30000
+        times = np.nanargmin(wf, axis = 0)/fs
         times = times - times[mcs]
         
 #############        
@@ -45,9 +45,10 @@ def get_spike_velocity(wf, sp_idx, geom, channel_index, mc, fs):
     sorted_t_above = t[sort_idx]
     diff_t_above = np.diff(sorted_t_above)
     
-    discard_s_idx = np.where(np.abs(diff_t_above)>0.0005)
+    discard_s_idx = [[]];#np.where(np.abs(diff_t_above)>0.0005)
     if len(discard_s_idx[0]) == 0:
         keep_idx_above = slice(None)
+        # print('ok')
     else:
         keep_idx_above = np.arange(np.min(discard_s_idx) - 1)  
         
@@ -67,7 +68,7 @@ def get_spike_velocity(wf, sp_idx, geom, channel_index, mc, fs):
     sorted_t_below = t[sort_idx]
     diff_t_below = np.diff(sorted_t_below)
     
-    discard_s_idx = np.where(np.abs(diff_t_below)>0.0005) #remove outliers that has a peak time of > 0.0005s from the peak time of the previous spot
+    discard_s_idx = [[]];#np.where(np.abs(diff_t_below)>0.0005) #remove outliers that has a peak time of > 0.0005s from the peak time of the previous spot
     if len(discard_s_idx[0]) == 0:
         keep_idx_below = slice(None)
     else:

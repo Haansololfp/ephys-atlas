@@ -125,6 +125,9 @@ maxchan = data['maxchan']
 wfs_to_denoise = data['wfs_to_denoise']
 
 # %%
+maxchan
+
+# %%
 h5_dir = '/moto/stats/users/hy2562/projects/ephys_atlas/improved_destripe/destripe_and_subtract/eID_111c1762-7908-47e0-9f40-2f2ee55b6505_probe_probe01_pID_eebcaf65-7fa4-4118-869d-a084e84530e2/subtraction.h5'
 
 # %%
@@ -198,22 +201,16 @@ wfs_denoised_old = dn(torch.FloatTensor(wfs).reshape(-1, 121)).reshape(wfs.shape
 wfs_denoised_old = wfs_denoised_old.detach().numpy()
 
 # %%
-CH_checked
-
-# %%
-neighbors
-
-# %%
 ci_graph
 
 # %%
 group = ci_graph[22]
 
 # %%
-len(np.where(group > mcs_idx)[0])
+np.shape(wfs_traveler[0, :, np.arange(10)])
 
 # %%
-mcs_idx
+np.shape(full_wfs)
 
 # %%
 (len(np.where(group > mc_idx)[0])!=0) & (len(np.where(group < mc_idx)[0])!=0) & (ch!= mc_idx[0])
@@ -227,7 +224,7 @@ wfs_traveler = wfs_to_denoise
 # maxchan = max_chan
 a = []
 c = []
-for i in range(len(maxchan)):
+for i in range(0,1):#range(len(maxchan)):
     mcs = int(maxchan[i])
     ci = channel_index[mcs]
     non_nan_idx = np.where(ci<384)[0]
@@ -264,7 +261,7 @@ for i in range(len(maxchan)):
     
     spk_denoised_wfs = np.zeros((121, l))
     
-    full_wfs = wfs_traveler[i, :, non_nan_idx].T
+    full_wfs = wfs_traveler[i, :, non_nan_idx]
     
     mcs_wfs = full_wfs[:,mcs_idx]
     
