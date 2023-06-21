@@ -263,7 +263,7 @@ y_pitch = np.diff(np.unique(geom[:,1]))[0]
 # %%
 mcs_phase_shift
 
-# %%
+# %% jupyter={"outputs_hidden": true}
 spk_time = 42 + 60;
 centered_range = np.arange(60,181)
 dn = SingleChanDenoiser().load()

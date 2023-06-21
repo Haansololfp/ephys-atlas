@@ -141,7 +141,7 @@ for i in range(len(Benchmark_pids)):
                 fine_region_feature[RL]['repolariztion_slopes'] = np.concatenate((repolariztion_slopes[subsample_1][:,None], repolariztion_slopes[subsample_2][:,None]), axis = 1)
                 fine_region_feature[RL]['recovery_slopes'] = np.concatenate((recovery_slopes[subsample_1][:,None], recovery_slopes[subsample_2][:,None]), axis = 1)
                 fine_region_feature[RL]['spatial_spread'] = np.concatenate((spatial_spread[subsample_1][:,None], spatial_spread[subsample_2][:,None]), axis = 1)
-        
+
 
 # %%
 brain_regions = list(fine_region_feature.keys())

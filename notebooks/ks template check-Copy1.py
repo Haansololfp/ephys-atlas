@@ -174,9 +174,6 @@ plt.title(pID + '_unit_' + str(good_clusters[i]) + '_maxCH_' + str(corrected_max
 
 
 # %%
-2000*fs
-
-# %%
 from spike_psvae.spike_train_utils import clean_align_and_get_templates
 save_dir = '/moto/stats/users/hy2562/projects/ephys_atlas/template_from_benchmark/'
 

@@ -61,13 +61,32 @@ with h5py.File(h5_dir) as h5:
     geom = h5['geom'][:]
 
 # %%
-print(torch.version.cuda)
-
-# %%
 from spike_psvae.denoise import SingleChanDenoiser
 from spike_psvae import denoise
+
+# %%
 ci_graph_on_probe, maxCH_neighbor = denoise.make_ci_graph(channel_index, geom)
-dn = SingleChanDenoiser().load().to("cuda")
+ci_graph_all_maxCH_uniq = denoise.make_ci_graph_all_maxCH(ci_graph_on_probe, maxCH_neighbor)
+# dn = SingleChanDenoiser().load()
+
+# %%
+# ci_graph_all_maxCH_uniq = denoise.make_ci_graph_all_maxCH(ci_graph_on_probe, maxCH_neighbor)
+fig, axes = plt.subplots(1, 5, figsize = (6, 5))
+i = 40
+ci_graph_all_maxCH_test = ci_graph_all_maxCH_uniq[i, :, :, :]
+ci = channel_index[i]
+ci_geom = geom[ci,:]
+maxCHneighbor = maxCH_neighbor[i,:]
+for i in range(5):
+    for j in range(40):
+        idx = ci_graph_all_maxCH_test[j, :, i]
+        idx = idx[idx<40]
+        for k in idx:
+            axes[i].plot(ci_geom[[j,k],0], ci_geom[[j,k],1], c = 'k')
+        
+    axes[i].scatter(ci_geom[:, 0], ci_geom[:,1], c = 'r')
+    axes[i].scatter(ci_geom[maxCHneighbor[i], 0], ci_geom[maxCHneighbor[i],1], c = 'g')
+
 
 # %%
 from spike_ephys import cell_type_feature
@@ -390,15 +409,44 @@ maxCH_array = np.concatenate(maxCH_array)
 
 # %%
 i = 18
-j = 24
+j = 20
 maxCH = maxCH_array[i]
 ci = channel_index[maxCH]
 wav = generate_waveform(wfs_array[j,:],  sxy=np.concatenate([geom[maxCH], [0]]), wxy=np.concatenate([geom[ci], np.zeros((40,1))], axis = 1));
 bias = bias = np.arange(40)
 bias = np.repeat(bias[None,:], 121, axis = 0)
 offset= 10
+plt.figure(figsize = [6,10])
+plt.plot(wav*5000 + bias*offset , c = 'r');
 
-plt.plot(wav*5000 + bias*offset + np.roll(colliding_array[i,:,:], 25, axis = 0));
+
+plt.figure(figsize = [6,10])
+plt.plot(wav*5000 + bias*offset , c = 'r');
+plt.plot(wav*5000 + bias*offset + np.roll(colliding_array[i,:,:], 25, axis = 0), c = 'k');
+
+# + np.roll(colliding_array[i,:,:], 25, axis = 0)
+
+# %%
+np.shape(waveforms)
+
+ # %%
+ dn(torch.FloatTensor(wfs_to_denoise).reshape(-1, 121)).reshape(wfs_to_denoise.shape)
+
+# %%
+device = None
+wfs_to_denoise = wav*5000 + np.roll(colliding_array[i,:,:], 25, axis = 0)
+wfs_to_denoise = wfs_to_denoise[None, :,:]
+wfs_to_denoise = np.repeat(wfs_to_denoise, 10,0)
+waveforms = torch.as_tensor(wfs_to_denoise, device=device, dtype=torch.float)
+
+
+waveforms_denoise = denoise.multichan_phase_shift_denoise(waveforms, ci_graph_on_probe, torch.tensor(maxCH_neighbor).type(torch.LongTensor), dn, maxchans =np.ones(10) * maxCH)
+wfs_denoised = waveforms_denoise.detach().numpy()
+
+# wfs_denoised = np.swapaxes(wfs_denoised, , 2)
+
+plt.figure(figsize = [6,10])
+plt.plot(wfs_denoised[0,:, :] + bias*offset , c = 'g');
 
 # %%
 traveling_wfs = []
@@ -425,7 +473,7 @@ for i in range(10000):
     traveling_wfs.append(synth_wfs)
     traveling_wfs_clean.append(wav*5000)
     maxchannels.append(maxCH)
-    
+
 
 # %%
 traveling_wfs = np.array(traveling_wfs)
@@ -525,13 +573,13 @@ for i in range(batch_N):
 
     clean_wfs_features.append(wfs_feature_values)
 
-# %% jupyter={"outputs_hidden": true, "source_hidden": true}
+# %% jupyter={"outputs_hidden": true}
 # denoised_features_old = np.reshape(denoised_features_old, [batch_size*batch_N, 11])
 # denoised_features = np.reshape(denoised_features, [batch_size*batch_N, 11])
 clean_wfs_features = np.reshape(clean_wfs_features, [-1, 11])
 clean_wfs_features[:,10]
 
-# %%
+# %% jupyter={"outputs_hidden": true}
 # denoised_features_old = np.reshape(denoised_features_old, [batch_size*batch_N, 11])
 # denoised_features = np.reshape(denoised_features, [batch_size*batch_N, 11])
 # clean_wfs_features = np.reshape(clean_wfs_features, [batch_size*batch_N, 11])
@@ -593,11 +641,42 @@ np.savez(save_dir + '/speed = ' + str(v) + "/generated_traveling_wfs_v_" + str(v
 import time
 
 
+# %%
+save_dir = '/moto/stats/users/hy2562/projects/ephys_atlas/synthesize_traveling_denoise'
+v = 1
+data = np.load(save_dir + '/speed = ' + str(v) + "/generated_traveling_wfs_v_" + str(v) + '.npz')
+traveling_wfs = data['traveling_wfs']
+maxchannels = data['maxchannels']
+
+# %%
+import cProfile
+
 # %% jupyter={"outputs_hidden": true}
+wfs_to_denoise = traveling_wfs[pick_idx, :, :]
+    
+wfs_to_denoise = np.swapaxes(wfs_to_denoise, 1, 2)  
+waveforms = torch.FloatTensor(wfs_to_denoise).to(device).reshape(-1, 121)
+cProfile.run('dn(waveforms).reshape(wfs_to_denoise.shape)')
+
+# %%
+wfs_to_denoise = np.swapaxes(wfs_to_denoise, 1, 2)
+waveforms = torch.as_tensor(wfs_to_denoise, device=device, dtype=torch.float)
+
+# %% jupyter={"outputs_hidden": true}
+cProfile.run('waveforms_denoise = denoise.multichan_phase_shift_denoise(waveforms, ci_graph_on_probe, maxCH_neighbor.long(), dn, maxchans = maxchans)')
+
+# %% jupyter={"outputs_hidden": true}
+waveforms_denoise = denoise.multichan_phase_shift_denoise(waveforms, ci_graph_on_probe, maxCH_neighbor.long(), dn, maxchans = maxchans)
+
+# %%
+from spike_psvae.denoise import SingleChanDenoiser
 N = [10, 100, 1000, 10000]
 
 old_denoiser_T = []
 new_denoiser_T = []
+
+device = 'cpu'
+dn = SingleChanDenoiser().load().to(device)
 
 for i in range(len(N)):
     n = N[i]
@@ -605,43 +684,49 @@ for i in range(len(N)):
     pick_idx = np.random.choice(10000, n)
     
     wfs_to_denoise = traveling_wfs[pick_idx, :, :]
-    template = traveling_wfs_clean[pick_idx, :, :]
     
     wfs_to_denoise = np.swapaxes(wfs_to_denoise, 1, 2)  
+    waveforms = torch.FloatTensor(wfs_to_denoise).to(device).reshape(-1, 121)
     t0 = time.time()
-    wfs_denoised_old = dn(torch.FloatTensor(wfs_to_denoise).reshape(-1, 121)).reshape(wfs_to_denoise.shape)
+    wfs_denoised_old = dn(waveforms).reshape(wfs_to_denoise.shape)
     t1 = time.time()
     old_denoiser_T.append(t1 - t0)
-    wfs_denoised_old = wfs_denoised_old.detach().numpy()
+    wfs_denoised_old = wfs_denoised_old.to('cpu').detach().numpy()
     wfs_denoised_old = np.swapaxes(wfs_denoised_old, 1, 2)   
     
     max_chan = maxchannels[pick_idx]
     
     maxchans = max_chan#np.int32(np.ones(batch_size)*max_chan)
     
+    ci_graph_on_probe, maxCH_neighbor = denoise.make_ci_graph(channel_index, geom, device)
     
     wfs_to_denoise = np.swapaxes(wfs_to_denoise, 1, 2)
     waveforms = torch.as_tensor(wfs_to_denoise, device=device, dtype=torch.float)
     t0 = time.time()
-    waveforms_denoise = denoise.multichan_phase_shift_denoise(waveforms, ci_graph_on_probe, torch.tensor(maxCH_neighbor).type(torch.LongTensor), dn, maxchans = maxchans)
+    waveforms_denoise = denoise.multichan_phase_shift_denoise(waveforms, ci_graph_on_probe, maxCH_neighbor.long(), dn, maxchans = maxchans)
     t1 = time.time()
+
     new_denoiser_T.append(t1-t0)
-    wfs_denoised = waveforms_denoise.detach().numpy()
+    # wfs_denoised = waveforms_denoise.to('cpu').detach().numpy()
     
-    traveling_wfs_denoise_old.append(wfs_denoised_old)
-    traveling_wfs_denoise.append(wfs_denoised)
+    # traveling_wfs_denoise_old.append(wfs_denoised_old)
+    # traveling_wfs_denoise.append(wfs_denoised)
 
 # %%
-plt.plot(np.array(N[0:3]), np.array(old_denoiser_T[0:3])/np.array(new_denoiser_T))
+new_denoised_T_cuda = new_denoiser_T
+old_denoiser_T_cuda = old_denoiser_T 
+
+# %%
+plt.plot(np.array(N), np.array(old_denoiser_T)/np.array(new_denoiser_T))
 # plt.plot(np.array(N), np.array(new_denoiser_T))
 
 # %%
-plt.plot(np.array(N[0:3]), np.array(old_denoiser_T[0:3]))
-plt.plot(np.array(N[0:3]), np.array(new_denoiser_T))
+plt.plot(np.array(N), np.array(old_denoiser_T))
+plt.plot(np.array(N), np.array(new_denoiser_T))
 plt.xlabel('N')
 plt.ylabel('time (s)')
 
-# %% jupyter={"outputs_hidden": true}
+# %%
 bias = np.arange(40)
 bias = np.repeat(bias[None,:], 121, axis = 0)
 for i in range(1):#range(len(Benchmark_pids)):

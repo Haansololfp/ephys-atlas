@@ -23,6 +23,10 @@ from neurowaveforms.model import generate_waveform
 import torch
 
 # %%
+np_load_old = np.load
+np.load = lambda *a,**k: np_load_old(*a, allow_pickle=True, **k)
+
+# %%
 manually_picked_temp_dir = '/moto/stats/users/hy2562/projects/ephys_atlas/manual_selected_template_from_benchmark'
 template_raw_wfs_benchmark = np.load(manually_picked_temp_dir + '/templates_w_raw_waveforms.npy')
 template_raw_wfs_benchmark = template_raw_wfs_benchmark.item()
@@ -63,36 +67,7 @@ for i in range(1000):
     T2.append(end - start)
 
 # %%
-torch.max(a[range(100),:,1], dim = 1)[0]
-
-# %%
-torch.maximum(0.3*torch.max(a[range(100),:,1], dim = 1)[0], torch.tensor(3))
-
-# %%
 plt.plot(torch.max(a, axis = 0).values);
-
-# %%
-a = dict()
-a[1] = [2,3]
-a[2] = [1]
-a[3] = [6,7,8]
-a[2] = a[2] + list([1 ,3])
-a[4] = []
-a[4]  = a[4] + list(b[b == 2])
-
-sum(a.values(),[])
-
-# %%
-from itertools import zip_longest
-import numpy as np
-for nodes in list(zip_longest(*a.values())):
-    print(nodes)
-    print(np.where(np.array(nodes)!=None)[0])
-
-# %%
-import re
-a = np.array([0, 1, 2, None, 3, None, 0])
-np.where(a == None)
 
 # %%
 aplt.plot(c[10,:,:].T);
@@ -130,7 +105,7 @@ colliding_array = np.array(colliding_array)
 from neurowaveforms.model import generate_waveform
 from ibllib.plots import Density
 wav = generate_waveform(wfs_array[7,:]);
-bias = bias = np.arange(40)
+bias = np.arange(40)
 bias = np.repeat(bias[None,:], 121, axis = 0)
 offset= 10
 
@@ -152,7 +127,7 @@ with h5py.File(h5_dir) as h5:
     channel_index = h5['channel_index'][:]
 
 # %%
-dn = denoise.SingleChanDenoiser().load()
+dn = denoise.SingleChanDenoiser().load().to(device)
 
 # %%
 savedir = '/moto/stats/users/hy2562/projects/ephys_atlas/synthesize_traveling_denoise/speed = 1'
@@ -179,5 +154,47 @@ for i in range(500):
     plt.savefig(savedir + '/' + 'denoise_waveform_synthesize_travel_speed_' + str(v) + '_' + str(i) + '.png')
     
     plt.close()
+
+# %% [markdown]
+# Test on gpurized phase-shift denoiser
+
+# %%
+savedir = '/moto/stats/users/hy2562/projects/ephys_atlas/gpurize_phaseshift_denoiser_results/simulated_traveling_data/speed = 1'
+v = 1
+offset = 6
+device = 'cuda'
+ci_graph_on_probe, maxCH_neighbor = denoise.make_ci_graph(channel_index, geom, device)
+ci_graph_all_maxCH_uniq = denoise.make_ci_graph_all_maxCH(ci_graph_on_probe, maxCH_neighbor, device)
+
+bias = np.arange(40)
+bias = np.repeat(bias[None,:], 121, axis = 0)
+for i in range(500):
+    idx = np.random.choice(len(wfs_array), 2)
+    wav = generate_waveform(wfs_array[idx[0],:], vertical_velocity_mps = v)
+    jitter = np.random.randint(5, 100)
+    synth_wfs = wav*2500 + np.roll(colliding_array[idx[1],:,:], jitter, axis = 0)
+    # device = None
+    
+    ptps = wav.ptp(0)
+    maxchan = np.nanargmax(ptps)
+        
+    waveforms = torch.as_tensor(synth_wfs[None, :,:], device=device, dtype=torch.float)
+    
+    maxchans = torch.tensor([maxchan], device=device)
+    
+    waveforms, wfs_old_denoiser = denoise.multichan_phase_shift_denoise_preshift(waveforms, ci_graph_all_maxCH_uniq, maxCH_neighbor, dn, maxchans, device)
+    
+    waveforms = waveforms.cpu().detach().numpy()
+    plt.figure(figsize = (6, 10))
+    plt.plot(synth_wfs + bias*offset, c = 'k')
+    plt.plot(wav*2500 + bias*offset, c = 'r')
+    plt.plot(np.squeeze(waveforms) + bias*offset, c = 'g')
+    
+    plt.savefig(savedir + '/' + 'denoise_waveform_synthesize_travel_speed_' + str(v) + '_' + str(i) + '.png')
+    
+    plt.close()
+
+# %%
+maxchans
 
 # %%

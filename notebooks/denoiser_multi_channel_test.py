@@ -59,7 +59,7 @@ import re
 # %%
 main_dir = '/moto/stats/users/hy2562/projects/ephys_atlas/improved_destripe/destripe_and_subtract'
 manually_picked_temp_dir = '/moto/stats/users/hy2562/projects/ephys_atlas/manual_selected_template_from_benchmark'
-
+Templates = []
 # template_raw_wfs_benchmark = dict()
 
 for i in range(len(Benchmark_pids)):
@@ -106,40 +106,48 @@ for i in range(len(Benchmark_pids)):
         clu_id = int(file_name[underline_idx[1].end():underline_idx[2].start()])
 
         template = templates_aligned[clu_id]
+        
+        Templates.append(template)
             
-        ptps = template.ptp(0)
-        mc = np.argmax(ptps)
-        max_channels.append(mc)
+#         ptps = template.ptp(0)
+#         mc = np.argmax(ptps)
+#         max_channels.append(mc)
         
-        ci = channel_index[mc]
+#         ci = channel_index[mc]
         
-        # cluster_wfs[clu_id] = []
+#         # cluster_wfs[clu_id] = []
         
-        spks_in_cluster = np.squeeze(np.where(st[:,1] == clu_id))
-        rand_sample_idx = np.random.choice(len(spks_in_cluster), 100)
-        ci_not_nan = np.squeeze(np.where(ci < 384))
-        # for k in range(100):
-#             load_start = np.int32(st[spks_in_cluster][rand_sample_idx[k], 0] - 42)
-#             load_end = np.int32(st[spks_in_cluster][rand_sample_idx[k], 0] + 79)
+#         spks_in_cluster = np.squeeze(np.where(st[:,1] == clu_id))
+#         rand_sample_idx = np.random.choice(len(spks_in_cluster), 100)
+#         ci_not_nan = np.squeeze(np.where(ci < 384))
+#         # for k in range(100):
+# #             load_start = np.int32(st[spks_in_cluster][rand_sample_idx[k], 0] - 42)
+# #             load_end = np.int32(st[spks_in_cluster][rand_sample_idx[k], 0] + 79)
 
-#             raw_wfs = np.zeros((121, 40)) * np.nan
+# #             raw_wfs = np.zeros((121, 40)) * np.nan
             
 
 
-#             raw_wfs[:,ci_not_nan] = rec.get_traces(start_frame=load_start, end_frame=load_end)[:,ci[ci_not_nan]]
+# #             raw_wfs[:,ci_not_nan] = rec.get_traces(start_frame=load_start, end_frame=load_end)[:,ci[ci_not_nan]]
             
-#             cluster_wfs[clu_id].append(raw_wfs)
+# #             cluster_wfs[clu_id].append(raw_wfs)
             
-        temp_ci = np.zeros((121, 40)) * np.nan
-        temp_ci[:,ci_not_nan] = template[:,ci[ci_not_nan]]
-        cluster_temp[clu_id] = temp_ci#np.nanmean(np.array(cluster_wfs[clu_id]), axis = 0)
+#         temp_ci = np.zeros((121, 40)) * np.nan
+#         temp_ci[:,ci_not_nan] = template[:,ci[ci_not_nan]]
+#         cluster_temp[clu_id] = temp_ci#np.nanmean(np.array(cluster_wfs[clu_id]), axis = 0)
         
-    template_raw_wfs_benchmark[pID]['temp'] = cluster_temp
-    template_raw_wfs_benchmark[pID]['maxchan'] = max_channels
+#     template_raw_wfs_benchmark[pID]['temp'] = cluster_temp
+#     template_raw_wfs_benchmark[pID]['maxchan'] = max_channels
     # template_raw_wfs_benchmark[pID]['wfs'] = cluster_wfs
     # good_clusters = list(cluster_wfs.keys())
         
     
+
+# %%
+Templates = np.array(Templates)
+
+# %%
+np.save(manually_picked_temp_dir + '/templates_for_simulation.npy', Templates)
 
 # %%
 manually_picked_temp_dir = '/moto/stats/users/hy2562/projects/ephys_atlas/manual_selected_template_from_benchmark'

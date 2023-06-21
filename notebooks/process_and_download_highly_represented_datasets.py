@@ -138,7 +138,7 @@ for i in range(3,len(Benchmark_pids)):
                     loc_feature=("ptp", "peak"),
                 )
         continue
-    
+
 
 # %% jupyter={"outputs_hidden": true}
 from spike_psvae import subtract
